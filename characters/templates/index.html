@@ -1,0 +1,203 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1" name="viewport"/>
+  <title>Histomind t</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather&family=Open+Sans&display=swap" rel="stylesheet"/>
+  <style>
+   body {
+     font-family: 'Merriweather', serif;
+     background: linear-gradient(135deg, #f0e8d8 0%, #d9cbbf 100%);
+   }
+   #chat-output::-webkit-scrollbar {
+     width: 8px;
+   }
+   #chat-output::-webkit-scrollbar-track {
+     background: #fef6e4;
+     border-radius: 10px;
+   }
+   #chat-output::-webkit-scrollbar-thumb {
+     background-color: #8b4513;
+     border-radius: 10px;
+   }
+   .fade-in {
+     animation: fadeInUp 0.5s ease forwards;
+     opacity: 0;
+     transform: translateY(10px);
+   }
+   @keyframes fadeInUp {
+     to {
+       opacity: 1;
+       transform: translateY(0);
+     }
+   }
+   button:hover {
+     animation: pulse 1s infinite;
+   }
+   @keyframes pulse {
+     0%, 100% { box-shadow: 0 0 8px #6b2f0e; }
+     50% { box-shadow: 0 0 20px #8b4513; }
+   }
+   #user-input {
+     resize: none;
+     height: 3rem;
+     overflow-y: auto;
+   }
+  </style>
+ </head>
+ <body class="min-h-screen flex items-center justify-center p-4">
+  <main class="bg-white bg-opacity-90 backdrop-blur-md rounded-3xl shadow-2xl max-w-3xl w-full flex flex-col md:flex-row overflow-hidden">
+   <section class="md:w-1/3 bg-gradient-to-b from-yellow-200 via-yellow-100 to-yellow-50 p-8 flex flex-col items-center justify-between">
+    <img src="{% static 'images/logo.jpg' %}" alt="Mahatma Gandhi" class="w-32 h-32 rounded-full shadow-lg mb-6 ring-4 ring-yellow-300"/>
+    <h1 class="text-4xl font-serif text-yellow-900 text-center drop-shadow-md select-none">Histomind </h1>
+    <p class="mt-6 text-center text-yellow-800 font-semibold tracking-wide">Choose a figure and ask your question.</p>
+    <select id="character-select" class="mt-6 w-full rounded-lg border-2 border-yellow-700 bg-yellow-50 text-yellow-900 font-semibold px-4 py-3 shadow-inner focus:outline-none focus:ring-4 focus:ring-yellow-400 transition">
+     <option value="">Loading characters...</option>
+    </select>
+    <img src="{% static 'images/logo2.jpg' %}" alt="Collage of historical figures" class="mt-8 rounded-lg shadow-md ring-2 ring-yellow-300" width="200" height="150"/>
+   </section>
+
+   <section class="md:w-2/3 flex flex-col p-6 bg-white bg-opacity-90">
+    <div id="chat-output" class="flex-1 overflow-y-auto border-2 border-yellow-700 rounded-xl p-6 bg-yellow-50 shadow-inner max-h-[480px]" aria-label="Chat conversation" tabindex="0"></div>
+    <form id="chat-form" class="mt-6 flex flex-col sm:flex-row gap-4" aria-label="Send message form">
+     <textarea id="user-input" name="user-input" class="flex-grow rounded-lg border-2 border-yellow-700 px-4 py-3 text-yellow-900 font-semibold placeholder-yellow-400 focus:outline-none focus:ring-4 focus:ring-yellow-400 transition resize-none h-12 overflow-y-auto" placeholder="Ask a historical figure a question..." rows="1" required></textarea>
+     <button type="submit" class="flex-shrink-0 bg-yellow-700 hover:bg-yellow-800 text-white font-bold rounded-lg px-6 py-3 shadow-lg transition-colors focus:outline-none focus:ring-4 focus:ring-yellow-400 flex items-center justify-center gap-2" aria-label="Send message">
+      <i class="fas fa-paper-plane"></i> Send
+     </button>
+    </form>
+   </section>
+  </main>
+
+  <script>
+    (() => {
+      const chatOutput = document.getElementById("chat-output");
+      const userInput = document.getElementById("user-input");
+      const characterSelect = document.getElementById("character-select");
+      const chatForm = document.getElementById("chat-form");
+
+      // Load available characters from API
+      async function loadCharacters() {
+        try {
+          const response = await fetch("/api/characters/");
+          if (response.ok) {
+            const data = await response.json();
+            characterSelect.innerHTML = "";
+
+            if (data.characters && data.characters.length > 0) {
+              data.characters.forEach(character => {
+                const option = document.createElement("option");
+                option.value = character.name;
+                option.textContent = `${character.name} (${character.era})`;
+                characterSelect.appendChild(option);
+              });
+            } else {
+              const option = document.createElement("option");
+              option.value = "";
+              option.textContent = "No characters available";
+              characterSelect.appendChild(option);
+            }
+          } else {
+            console.error("Failed to load characters");
+            characterSelect.innerHTML = '<option value="">Error loading characters</option>';
+          }
+        } catch (error) {
+          console.error("Error loading characters:", error);
+          characterSelect.innerHTML = '<option value="">Error loading characters</option>';
+        }
+      }
+
+      // Load characters when page loads
+      loadCharacters();
+
+      function createMessageElement(text, isUser = false) {
+        const div = document.createElement("div");
+        div.className = `fade-in max-w-[80%] px-4 py-3 rounded-lg mb-4 break-words ${
+          isUser ? "self-end bg-yellow-200 text-yellow-900 shadow-md" : "self-start bg-yellow-100 text-yellow-800 shadow-inner"
+        }`;
+        div.setAttribute("role", "article");
+        div.setAttribute("aria-label", isUser ? "User message" : "Bot message");
+        div.textContent = text;
+        return div;
+      }
+
+      function scrollChatToBottom() {
+        chatOutput.scrollTo({ top: chatOutput.scrollHeight, behavior: "smooth" });
+      }
+
+      function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== "") {
+          const cookies = document.cookie.split(";");
+          for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === name + "=") {
+              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+              break;
+            }
+          }
+        }
+        return cookieValue;
+      }
+
+      async function sendMessage(message) {
+        if (!message.trim()) return;
+
+        const userMessage = createMessageElement(`You: ${message}`, true);
+        chatOutput.appendChild(userMessage);
+        scrollChatToBottom();
+
+        userInput.disabled = true;
+        chatForm.querySelector("button").disabled = true;
+
+        try {
+          const response = await fetch("/api/chat/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCookie("csrftoken"),
+            },
+            body: JSON.stringify({
+              character: characterSelect.value,
+              message: message,
+            }),
+          });
+
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+          const data = await response.json();
+          const botMessage = createMessageElement(`${data.character}: ${data.reply || "No response available."}`, false);
+          chatOutput.appendChild(botMessage);
+          scrollChatToBottom();
+        } catch (error) {
+          const errorMessage = createMessageElement(`Error: ${error.message}`, false);
+          errorMessage.classList.add("bg-red-200", "text-red-900");
+          chatOutput.appendChild(errorMessage);
+          scrollChatToBottom();
+          console.error("Error:", error);
+        } finally {
+          userInput.disabled = false;
+          chatForm.querySelector("button").disabled = false;
+          userInput.focus();
+        }
+      }
+
+      chatForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const message = userInput.value;
+        if (!message.trim()) return;
+        sendMessage(message);
+        userInput.value = "";
+      });
+
+      const observer = new MutationObserver(() => {
+        chatOutput.setAttribute("aria-live", "polite");
+      });
+      observer.observe(chatOutput, { childList: true });
+    })();
+  </script>
+ </body>
+</html>
